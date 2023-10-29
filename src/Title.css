@@ -1,0 +1,10 @@
+.title-bar {
+    width: 100vw;
+    margin-bottom: 5px;
+}
+
+.title-text {
+    text-align: center;
+    font-size: x-large;
+    font-family: "Courier New", Courier, monospace;
+}

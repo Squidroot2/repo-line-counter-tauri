@@ -1,0 +1,9 @@
+.horizontal {
+    display: flex;
+    margin-right: 10px;
+}
+
+.scan-button {
+    min-width: 100px;
+    margin: 15px;
+}

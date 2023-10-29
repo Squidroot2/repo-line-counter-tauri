@@ -1,0 +1,20 @@
+table,
+th,
+td {
+    border: 1px solid;
+}
+
+table {
+    border-collapse: collapse;
+}
+
+body {
+    background-color: rgb(45, 45, 58);
+    color: rgb(183, 241, 171);
+}
+
+:root {
+    --main-bg-color: rgb(45, 45, 58);
+    --font-color: rgb(183, 241, 171);
+    --accent-color: #33bf33;
+}
