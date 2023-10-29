@@ -4,13 +4,9 @@ use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use std::sync::mpsc::{self, Sender};
-use std::thread;
-use tauri::async_runtime::TokioJoinHandle;
+use tauri::async_runtime::Sender;
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::join;
-use tokio::task::JoinHandle;
 
 use crate::model::{FileLineSummary, FileLines};
 
@@ -28,20 +24,23 @@ pub async fn scan_and_summarize(dir: PathBuf, ext_option: Option<OsString>) -> (
  Asyncronously processes those PathBufs by reading their length and returning the list of FileLines data structures
 */
 async fn scan_for_file_lines(base_dir: &Path, ext_option: Option<OsString>) -> Vec<FileLines> {
-    // let (tx, mut rx) = tokio::sync::mpsc::channel(1000);
-    let (tx, rx) = mpsc::channel::<PathBuf>();
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1000);
+    //let (tx, rx) = mpsc::channel::<PathBuf>();
     let base_dir_copy = base_dir.to_path_buf();
-    thread::spawn(move || 
+    tokio::spawn(async move {
         //let ext_str_option = ext_option.as_deref();
-        send_files(tx, &base_dir_copy, &ext_option)
-    );
+        send_files(tx, base_dir_copy, ext_option).await;
+    });
 
-    // let mut file_lines_futures = FuturesUnordered::new();
-    let mut file_lines = Vec::new();
+    let mut file_lines_futures = FuturesUnordered::new();
 
-    for received in rx {
+    while let Some(received) = rx.recv().await {
         // file_lines_futures.push(get_file_lines(&base_dir, received))
-        file_lines.push(get_file_lines(&base_dir, received).await)
+        file_lines_futures.push(get_file_lines(&base_dir, received))
+    }
+    let mut file_lines = Vec::new();
+    while let Some(result) = file_lines_futures.next().await {
+        file_lines.push(result)
     }
 
     file_lines
@@ -77,43 +76,22 @@ async fn get_file_lines(base_dir: &Path, file_path: PathBuf) -> FileLines {
     }
 }
 
-// async fn send_files(sender: Sender<PathBuf>, root_dir: PathBuf, ext_option: Option<OsString>) {
-//     let mut dirs_to_process = VecDeque::from([root_dir]);
-//     println!("Dirs to process: {}", dirs_to_process.len());
-//     while let Some(dir) = dirs_to_process.pop_front() {
-//         if let Ok(dir_reader) = fs::read_dir(&dir) {
-//             for entry in dir_reader.filter_map(Result::ok) {
-//                 let path = entry.path();
-//                 if path.is_file() {
-//                     if matches_optional_extension(&path, &ext_option) {
-//                         match sender.send(path).await {
-//                             Ok(_) => {}
-//                             Err(e) => eprintln!("{}", e),
-//                         };
-//                     }
-//                 } else if path.is_dir() {
-//                     dirs_to_process.push_back(path);
-//                 }
-//             }
-//         }
-//     }
-// }
-/// Recursive function that searches a directory and uses the sender to sender all files to a channel
-fn send_files(sender: Sender<PathBuf>, dir: &Path, ext_option: &Option<OsString>) {
-    if dir.is_dir() {
-        if let Ok(dir_reader) = fs::read_dir(dir) {
+async fn send_files(sender: Sender<PathBuf>, root_dir: PathBuf, ext_option: Option<OsString>) {
+    let mut dirs_to_process = VecDeque::from([root_dir]);
+    println!("Dirs to process: {}", dirs_to_process.len());
+    while let Some(dir) = dirs_to_process.pop_front() {
+        if let Ok(dir_reader) = fs::read_dir(&dir) {
             for entry in dir_reader.filter_map(Result::ok) {
                 let path = entry.path();
                 if path.is_file() {
-                    if matches_optional_extension(&path, ext_option) {
-                        match sender.send(path) {
+                    if matches_optional_extension(&path, &ext_option) {
+                        match sender.send(path).await {
                             Ok(_) => {}
                             Err(e) => eprintln!("{}", e),
                         };
                     }
                 } else if path.is_dir() {
-                    let new_sender = sender.clone();
-                    send_files(new_sender, &path, ext_option);
+                    dirs_to_process.push_back(path);
                 }
             }
         }
