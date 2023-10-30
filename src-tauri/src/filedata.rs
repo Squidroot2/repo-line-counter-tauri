@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
-
+use std::sync::Arc;
 use tauri::async_runtime::Sender;
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -11,7 +11,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use crate::model::{FileLineSummary, FileLines};
 
 pub async fn scan_and_summarize(dir: PathBuf, ext_option: Option<OsString>) -> (Vec<FileLines>, FileLineSummary) {
-    let mut file_lines = scan_for_file_lines(&dir, ext_option).await;
+    let mut file_lines = scan_for_file_lines(dir, ext_option).await;
     file_lines.sort_by(|a, b| a.lines.cmp(&b.lines));
 
     let summary = FileLineSummary::get_summary(&file_lines);
@@ -23,31 +23,35 @@ pub async fn scan_and_summarize(dir: PathBuf, ext_option: Option<OsString>) -> (
  Spawns a thread that will recursively search the base_dir and add all files (PathBufs) to a channel.
  Asyncronously processes those PathBufs by reading their length and returning the list of FileLines data structures
 */
-async fn scan_for_file_lines(base_dir: &Path, ext_option: Option<OsString>) -> Vec<FileLines> {
-    let (tx, mut rx) = tokio::sync::mpsc::channel(1000);
-    //let (tx, rx) = mpsc::channel::<PathBuf>();
-    let base_dir_copy = base_dir.to_path_buf();
+async fn scan_for_file_lines(base_dir: PathBuf, ext_option: Option<OsString>) -> Vec<FileLines> {
+    //let (tx, mut rx) = tokio::sync::mpsc::channel(1000);
+
+    let base_dir_copy = base_dir.clone();
     tokio::spawn(async move {
-        //let ext_str_option = ext_option.as_deref();
         send_files(tx, base_dir_copy, ext_option).await;
+        println!("Finished sending files");
     });
 
-    let mut file_lines_futures = FuturesUnordered::new();
-
+    let mut file_lines_handles = FuturesUnordered::new();
+    let base_dir_ref = Arc::new(base_dir);
     while let Some(received) = rx.recv().await {
-        // file_lines_futures.push(get_file_lines(&base_dir, received))
-        file_lines_futures.push(get_file_lines(&base_dir, received))
+        let thread_base_dir_ref = base_dir_ref.clone();
+        file_lines_handles.push(tokio::spawn(async move { get_file_lines(thread_base_dir_ref, received).await }))
     }
+
     let mut file_lines = Vec::new();
-    while let Some(result) = file_lines_futures.next().await {
-        file_lines.push(result)
+    while let Some(result) = file_lines_handles.next().await {
+        match result {
+            Ok(fl) => file_lines.push(fl),
+            Err(e) => eprint!("{}", e),
+        }
     }
 
     file_lines
 }
 
 /// Creates a FileLines struct from the given file_path and base_dir. base_dir is to convert the file_path to a relative path
-async fn get_file_lines(base_dir: &Path, file_path: PathBuf) -> FileLines {
+async fn get_file_lines(base_dir: Arc<PathBuf>, file_path: PathBuf) -> FileLines {
     let file = match File::open(&file_path).await {
         Ok(file) => file,
         Err(e) => {
@@ -62,7 +66,7 @@ async fn get_file_lines(base_dir: &Path, file_path: PathBuf) -> FileLines {
         count += 1
     }
 
-    let file_path = match file_path.strip_prefix(base_dir) {
+    let file_path = match file_path.strip_prefix(base_dir.as_ref()) {
         Ok(rel_path) => rel_path.to_owned(),
         Err(e) => {
             eprintln!("Could not create relative path. Using full path. {}", e);
@@ -78,9 +82,8 @@ async fn get_file_lines(base_dir: &Path, file_path: PathBuf) -> FileLines {
 
 async fn send_files(sender: Sender<PathBuf>, root_dir: PathBuf, ext_option: Option<OsString>) {
     let mut dirs_to_process = VecDeque::from([root_dir]);
-    println!("Dirs to process: {}", dirs_to_process.len());
     while let Some(dir) = dirs_to_process.pop_front() {
-        if let Ok(dir_reader) = fs::read_dir(&dir) {
+        if let Ok(dir_reader) = fs::read_dir(dir) {
             for entry in dir_reader.filter_map(Result::ok) {
                 let path = entry.path();
                 if path.is_file() {
