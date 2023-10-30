@@ -24,7 +24,7 @@ pub async fn scan_and_summarize(dir: PathBuf, ext_option: Option<OsString>) -> (
  Asyncronously processes those PathBufs by reading their length and returning the list of FileLines data structures
 */
 async fn scan_for_file_lines(base_dir: PathBuf, ext_option: Option<OsString>) -> Vec<FileLines> {
-    //let (tx, mut rx) = tokio::sync::mpsc::channel(1000);
+    let (tx, mut rx) = tokio::sync::mpsc::channel(1000);
 
     let base_dir_copy = base_dir.clone();
     tokio::spawn(async move {

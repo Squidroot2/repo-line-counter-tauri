@@ -42,6 +42,7 @@ const FileLinesRow = ({ fileLine: fl }) => (
 const FileLinesTable = ({ filesLines }) => {
     const [fileFilterString, setFileFilterString] = useState("");
     const [lineCountFilterString, setLineCountFilterString] = useState("");
+    const [pageIndex, setPageIndex] = useState(0);
 
     /**
      *
@@ -63,6 +64,8 @@ const FileLinesTable = ({ filesLines }) => {
         }
         return true;
     };
+
+    const rowsPerPage = 1000;
 
     return (
         <div>
@@ -96,7 +99,10 @@ const FileLinesTable = ({ filesLines }) => {
                                     fl.lines.toString(),
                                 ),
                         )
-                        .reverse()
+                        .slice(
+                            pageIndex * rowsPerPage,
+                            (pageIndex + 1) * rowsPerPage,
+                        ) // TODO implement pagination
                         .map((fl) => (
                             <FileLinesRow fileLine={fl} key={fl.file} />
                         ))}

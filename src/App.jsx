@@ -61,7 +61,7 @@ const App = () => {
             setDidScan(true);
         }
         setSummary(response.summary);
-        setFilesLines(response.files);
+        setFilesLines(response.files.reverse());
         setIsScanning(false);
         setResponseTimeText(`finished in ${response.meta.responseMs}ms`);
     };
