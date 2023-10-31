@@ -5,6 +5,7 @@ mod command;
 mod dto;
 mod filedata;
 mod model;
+mod pathmatcher;
 mod state;
 
 fn main() {

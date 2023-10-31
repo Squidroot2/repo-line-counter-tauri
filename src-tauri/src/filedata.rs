@@ -2,16 +2,23 @@ use futures::stream::{FuturesUnordered, StreamExt};
 use std::collections::VecDeque;
 use std::ffi::OsString;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::async_runtime::Sender;
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
 use crate::model::{FileLineSummary, FileLines};
+use crate::pathmatcher::{self, AlwaysMatch, PathMatcher};
 
 pub async fn scan_and_summarize(dir: PathBuf, ext_option: Option<OsString>) -> (Vec<FileLines>, FileLineSummary) {
-    let mut file_lines = scan_for_file_lines(dir, ext_option).await;
+    let mut file_lines = match ext_option {
+        Some(ext) => {
+            let matcher = pathmatcher::ext_matcher(ext);
+            scan_for_file_lines(dir, matcher).await
+        }
+        None => scan_for_file_lines(dir, AlwaysMatch::new()).await,
+    };
     file_lines.sort_by(|a, b| a.lines.cmp(&b.lines));
 
     let summary = FileLineSummary::get_summary(&file_lines);
@@ -23,12 +30,15 @@ pub async fn scan_and_summarize(dir: PathBuf, ext_option: Option<OsString>) -> (
  Spawns a thread that will recursively search the base_dir and add all files (PathBufs) to a channel.
  Asyncronously processes those PathBufs by reading their length and returning the list of FileLines data structures
 */
-async fn scan_for_file_lines(base_dir: PathBuf, ext_option: Option<OsString>) -> Vec<FileLines> {
-    let (tx, mut rx) = tokio::sync::mpsc::channel(1000);
+async fn scan_for_file_lines<M: 'static>(base_dir: PathBuf, matcher: M) -> Vec<FileLines>
+where
+    M: PathMatcher + Send,
+{
+    let (tx, mut rx) = tokio::sync::mpsc::channel(50);
 
     let base_dir_copy = base_dir.clone();
     tokio::spawn(async move {
-        send_files(tx, base_dir_copy, ext_option).await;
+        send_files(tx, base_dir_copy, matcher).await;
         println!("Finished sending files");
     });
 
@@ -80,14 +90,17 @@ async fn get_file_lines(base_dir: Arc<PathBuf>, file_path: PathBuf) -> FileLines
     }
 }
 
-async fn send_files(sender: Sender<PathBuf>, root_dir: PathBuf, ext_option: Option<OsString>) {
+async fn send_files<M>(sender: Sender<PathBuf>, root_dir: PathBuf, matcher: M)
+where
+    M: PathMatcher,
+{
     let mut dirs_to_process = VecDeque::from([root_dir]);
     while let Some(dir) = dirs_to_process.pop_front() {
         if let Ok(dir_reader) = fs::read_dir(dir) {
             for entry in dir_reader.filter_map(Result::ok) {
                 let path = entry.path();
                 if path.is_file() {
-                    if matches_optional_extension(&path, &ext_option) {
+                    if matcher.matches(&path) {
                         match sender.send(path).await {
                             Ok(_) => {}
                             Err(e) => eprintln!("{}", e),
@@ -101,7 +114,7 @@ async fn send_files(sender: Sender<PathBuf>, root_dir: PathBuf, ext_option: Opti
     }
 }
 
-/// If no extension, always returns true
-fn matches_optional_extension(path: &Path, ext_option: &Option<OsString>) -> bool {
-    ext_option.as_ref().map_or(true, |ext| path.extension() == Some(&ext))
-}
+// /// If no extension, always returns true
+// fn matches_optional_extension(path: &Path, ext_option: &Option<OsString>) -> bool {
+//     ext_option.as_ref().map_or(true, |ext| path.extension() == Some(&ext))
+// }
