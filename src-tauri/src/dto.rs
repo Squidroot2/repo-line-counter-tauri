@@ -1,5 +1,5 @@
-use serde::{ser::SerializeSeq, Deserialize, Serialize, Serializer};
-use std::{path::PathBuf, sync::Arc};
+use serde::{ser::SerializeSeq, Serialize, Serializer};
+use std::sync::Arc;
 
 use crate::{
     command::CommandInfo,
@@ -100,25 +100,4 @@ impl EmptyResponse {
             meta: MetaData::create_success_result(info),
         }
     }
-}
-
-#[derive(Deserialize)]
-pub struct ScanDirRequest {
-    pub dir: PathBuf,
-    pub ext: Option<String>,
-}
-
-#[derive(Deserialize)]
-pub struct GetChildItemsRequest {
-    pub dir: PathBuf,
-    #[serde(rename = "includeFiles")]
-    pub include_files: bool,
-}
-
-#[derive(Deserialize)]
-pub struct GetNormalPathRequest {
-    #[serde(rename = "parentPath")]
-    pub parent_path: PathBuf,
-    #[serde(rename = "childName")]
-    pub child_name: PathBuf,
 }

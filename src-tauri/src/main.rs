@@ -13,11 +13,11 @@ mod state;
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            command::scan_dir,
-            command::get_cwd,
-            command::write_csv,
-            command::get_child_items,
-            command::get_normal_path,
+            command::scan_dir_command,
+            command::get_cwd_command,
+            command::write_csv_command,
+            command::get_child_items_command,
+            command::get_normal_path_command,
             command::get_item_type_command,
         ])
         .manage(state::LastScan::default())

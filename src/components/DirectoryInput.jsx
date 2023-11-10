@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/tauri";
 import Modal from "./Modal";
 import FileBrowserModal from "./FileBrowserModal";
+import { getCwdCommand } from "../commands";
 
 /**
  * Directory Input Component
@@ -67,7 +67,7 @@ const DirectoryInputModal = ({
     useEffect(() => {
         async function setDefaultDirectoryToCwd() {
             /** @type {SimpleResponse<String>} */
-            let response = await invoke("get_cwd");
+            let response = await getCwdCommand();
             if (response.meta.success) {
                 setDirectoryPath(response.data);
             }

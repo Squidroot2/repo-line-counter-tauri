@@ -4,8 +4,7 @@ use csv::Writer;
 
 use crate::state::ScanResults;
 
-//TODO rename to write_csv
-pub fn write_csv_a(scan_results: Option<Arc<ScanResults>>) -> Result<(), Box<dyn Error>> {
+pub fn write_csv(scan_results: Option<Arc<ScanResults>>) -> Result<(), Box<dyn Error>> {
     let cwd = env::current_dir()?;
 
     let data_to_write_rc = scan_results.ok_or("No Scan Results found")?;

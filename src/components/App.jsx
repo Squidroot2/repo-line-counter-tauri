@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/tauri";
 import "../dtoTypes.js";
 import "./App.css";
 import FileLinesTable from "./FileLinesTable.jsx";
@@ -8,6 +7,7 @@ import SummaryTable from "./SummaryTable.jsx";
 import MenuBar from "./MenuBar.jsx";
 import Title from "./Title.jsx";
 import ExportDataModal from "./ExportDataModal.jsx";
+import { scanDirCommand } from "../commands.js";
 
 /**
  * Main Application Component
@@ -42,13 +42,8 @@ const App = () => {
      * @param {string | null} ext
      */
     const startScanDir = async (directory, ext) => {
-        /**@type {ScanDirRequest} */
-        const request = {
-            dir: directory,
-            ext: ext,
-        };
         setIsScanning(true);
-        invoke("scan_dir", { request }).then((response) =>
+        scanDirCommand(directory, ext).then((response) =>
             update_data(response),
         );
     };

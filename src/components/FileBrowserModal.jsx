@@ -1,7 +1,11 @@
-import { invoke } from "@tauri-apps/api";
 import { useEffect, useState } from "react";
 import { FS_ITEM_TYPE } from "../enums";
-import { getItemTypeCommand } from "../commands.js";
+import {
+    getChildItemsCommand,
+    getCwdCommand,
+    getItemTypeCommand,
+    getNormalPathCommand,
+} from "../commands.js";
 import Modal from "./Modal";
 import "./FileBrowserModal.css";
 import "../dtoTypes";
@@ -24,71 +28,50 @@ const FileBrowserModal = ({ onClose, hidden, showFiles }) => {
     const [isValidSelectedItem, setIsValidSelectedItem] = useState(false);
 
     /**
-     *
-     * @param {SimpleResponse<FsItemInfo[]>} response
-     */
-    const updateItems = (response) => {
-        if (response.meta.success) {
-            setLocalItems(response.data);
-        }
-    };
-
-    /**
      * Checks if the newly selected item is valid
      */
     useEffect(() => {
-        /** @type {SimpleResponse<FsItemType>} */
-        const response = getItemTypeCommand(selectedItem).then(() => {
-            if (response.meta.success) {
-                const itemType = response.data;
-                console.log("item type: ", itemType);
-                if (itemType === FS_ITEM_TYPE.DIR) {
-                    setIsValidSelectedItem(true);
-                } else if (itemType === FS_ITEM_TYPE.FILE && showFiles) {
-                    setIsValidSelectedItem(true);
-                } else {
-                    setIsValidSelectedItem(false);
-                }
+        getItemTypeCommand(selectedItem).then((response) => {
+            const itemType = response.data;
+            if (itemType === FS_ITEM_TYPE.DIR) {
+                setIsValidSelectedItem(true);
+            } else if (itemType === FS_ITEM_TYPE.FILE && showFiles) {
+                setIsValidSelectedItem(true);
+            } else {
+                setIsValidSelectedItem(false);
             }
         });
     }, [selectedItem, showFiles]);
 
+    /**
+     * On mount, sets current directory to current working directory
+     */
     useEffect(() => {
-        async function setDefaultDirectoryToCwd() {
-            /** @type {SimpleResponse<String>} */
-            let response = await invoke("get_cwd");
+        getCwdCommand().then((response) => {
             if (response.meta.success) {
                 setCurrentDir(response.data);
+                setSelectedItem(response.data);
             }
-        }
-        setDefaultDirectoryToCwd();
+        });
     }, []);
 
+    /**
+     * Sets local items when current dir changes
+     */
     useEffect(() => {
-        const startGetItems = () => {
-            /** @type {GetChildItemsRequest} */
-            let request = {
-                dir: currentDir,
-                includeFiles: showFiles,
-            };
-            console.log("sending request: ", request);
-            invoke("get_child_items", { request }).then((response) =>
-                updateItems(response),
-            );
-        };
-        startGetItems();
+        if (currentDir) {
+            getChildItemsCommand(currentDir, showFiles).then((response) => {
+                if (response.meta.success) {
+                    setLocalItems(response.data);
+                }
+            });
+        }
     }, [currentDir, showFiles]);
 
     /** @param {FsItemInfo} item */
     const handleItemSelected = (item) => {
         if (item.itemType === FS_ITEM_TYPE.DIR) {
-            /** @type {GetNormalPathRequest} */
-            const request = {
-                parentPath: currentDir,
-                childName: item.name,
-            };
-
-            invoke("get_normal_path", { request }).then((response) => {
+            getNormalPathCommand(currentDir, item.name).then((response) => {
                 setCurrentDir(response.data);
                 setSelectedItem(response.data);
             });
@@ -139,7 +122,7 @@ const FileBrowserModal = ({ onClose, hidden, showFiles }) => {
                 className="file-item-input"
                 type="text"
                 value={selectedItem}
-                onChange={() => setSelectedItem(selectedItem)}
+                onChange={(event) => setSelectedItem(event.target.value)}
             />
         </Modal>
     );

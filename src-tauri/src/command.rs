@@ -1,16 +1,12 @@
-use csv::Writer;
 use std::env;
-use std::fs;
 use std::path::PathBuf;
-use std::time::Duration;
 use std::time::Instant;
 use tauri::State;
 
-use crate::dto::GetNormalPathRequest;
-use crate::dto::{EmptyResponse, ErrorResponse, GetChildItemsRequest, ScanDirRequest, ScanDirResponse, SimpleResponse};
+use crate::dto::{EmptyResponse, ErrorResponse, ScanDirResponse, SimpleResponse};
 use crate::filedata;
 use crate::filesystem::get_directory_content;
-use crate::filewriter::write_csv_a;
+use crate::filewriter::write_csv;
 use crate::model::FsItemInfo;
 use crate::model::FsItemType;
 use crate::state::LastScan;
@@ -19,10 +15,14 @@ use crate::state::LastScan;
 
 /// Note: Current implementation of this command will never return an ErrorResponse
 #[tauri::command(async)]
-pub async fn scan_dir<'r>(request: ScanDirRequest, last_scan: State<'r, LastScan>) -> Result<ScanDirResponse, ErrorResponse> {
+pub async fn scan_dir_command<'r>(
+    dir: PathBuf,
+    ext: Option<String>,
+    last_scan: State<'r, LastScan>,
+) -> Result<ScanDirResponse, ErrorResponse> {
     println!("Request received");
     let info = CommandInfo::start("scan_dir");
-    let (file_lines, summary) = filedata::scan_and_summarize(request.dir, request.ext.map(|e| e.into())).await;
+    let (file_lines, summary) = filedata::scan_and_summarize(dir, ext.map(|e| e.into())).await;
 
     let file_lines = last_scan.set_results(file_lines);
 
@@ -31,7 +31,7 @@ pub async fn scan_dir<'r>(request: ScanDirRequest, last_scan: State<'r, LastScan
 }
 
 #[tauri::command(async)]
-pub fn get_cwd() -> Result<SimpleResponse<PathBuf>, ErrorResponse> {
+pub fn get_cwd_command() -> Result<SimpleResponse<PathBuf>, ErrorResponse> {
     let info = CommandInfo::start("get_cwd");
     match env::current_dir() {
         Ok(path) => Ok(SimpleResponse::create(path, info)),
@@ -40,28 +40,28 @@ pub fn get_cwd() -> Result<SimpleResponse<PathBuf>, ErrorResponse> {
 }
 
 #[tauri::command(async)]
-pub fn write_csv(last_scan: State<LastScan>) -> Result<EmptyResponse, ErrorResponse> {
+pub fn write_csv_command(last_scan: State<LastScan>) -> Result<EmptyResponse, ErrorResponse> {
     let info = CommandInfo::start("write_csv");
-    match write_csv_a(last_scan.get_results()) {
+    match write_csv(last_scan.get_results()) {
         Ok(_) => Ok(EmptyResponse::create(info)),
         Err(e) => Err(ErrorResponse::create(format!("{e}"), info)),
     }
 }
 
 #[tauri::command(async)]
-pub fn get_child_items(request: GetChildItemsRequest) -> Result<SimpleResponse<Vec<FsItemInfo>>, ErrorResponse> {
+pub fn get_child_items_command(dir: PathBuf, include_files: bool) -> Result<SimpleResponse<Vec<FsItemInfo>>, ErrorResponse> {
     let info = CommandInfo::start("get_child_items");
 
-    match get_directory_content(request.dir, request.include_files) {
+    match get_directory_content(dir, include_files) {
         Ok(contents) => Ok(SimpleResponse::create(contents, info)),
         Err(e) => Err(ErrorResponse::create(format!("{e}"), info)),
     }
 }
 
 #[tauri::command(async)]
-pub fn get_normal_path(request: GetNormalPathRequest) -> Result<SimpleResponse<PathBuf>, ErrorResponse> {
+pub fn get_normal_path_command(parent_path: PathBuf, child_name: PathBuf) -> Result<SimpleResponse<PathBuf>, ErrorResponse> {
     let info = CommandInfo::start("get_normal_path"); //TODO arg_info
-    let normal_path = match request.parent_path.join(request.child_name).canonicalize() {
+    let normal_path = match parent_path.join(child_name).canonicalize() {
         Ok(path) => path,
         Err(e) => {
             return Err(ErrorResponse::create(format!("Failed to canonicalize path: {}", e), info));

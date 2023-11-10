@@ -1,9 +1,9 @@
 import Modal from "./Modal";
-import { invoke } from "@tauri-apps/api";
+import { writeCsvCommand } from "../commands";
 
 const ExportDataModal = ({ onClose, hidden }) => {
     const writeCsv = () => {
-        invoke("write_csv");
+        writeCsvCommand();
     };
 
     return (
