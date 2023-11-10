@@ -13,8 +13,10 @@
     background: rgba(60, 60, 65, 0.6);
 }
 .modal-content {
+    display: flex;
+    flex-direction: column;
     position: absolute;
-    top: 25%;
+    top: 45%;
     left: 50%;
     transform: translate(-50%, -50%);
     line-height: 1.4;
@@ -24,6 +26,13 @@
     border-radius: 3px;
     max-width: 1200px;
     min-width: 300px;
+    max-height: 600px;
+    overflow: hidden;
+}
+
+.modal-body {
+    flex-grow: 1;
+    overflow: hidden;
 }
 
 .modal-footer {

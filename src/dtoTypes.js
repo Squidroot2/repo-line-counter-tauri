@@ -20,9 +20,16 @@
  */
 
 /**
+ * @typedef {Object} GetNormalPathRequest
+ * @property {string} parentPath
+ * @property {string} childName
+ */
+
+/**
  * @typedef {Object} MetaData
  * @property {boolean} success
  * @property {number} responseMs
+ * @property {String} command
  */
 
 /**
@@ -50,7 +57,7 @@
  */
 
 /**
- * @typedef {"Dir"|"File"} FsItemType
+ * @typedef {"Dir"|"File"|"Missing"|"Unknown"} FsItemType
  */
 
 /**
@@ -58,3 +65,4 @@
  * @property {string} name
  * @property {FsItemType} itemType
  */
+

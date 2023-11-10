@@ -39,7 +39,6 @@ where
     let base_dir_copy = base_dir.clone();
     tokio::spawn(async move {
         send_files(tx, base_dir_copy, matcher).await;
-        println!("Finished sending files");
     });
 
     let mut file_lines_handles = FuturesUnordered::new();
@@ -113,8 +112,3 @@ where
         }
     }
 }
-
-// /// If no extension, always returns true
-// fn matches_optional_extension(path: &Path, ext_option: &Option<OsString>) -> bool {
-//     ext_option.as_ref().map_or(true, |ext| path.extension() == Some(&ext))
-// }

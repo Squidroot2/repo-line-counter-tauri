@@ -22,7 +22,7 @@ impl FileLineSummary {
     pub fn get_summary(sorted_file_lines: &Vec<FileLines>) -> FileLineSummary {
         let files = sorted_file_lines.len();
         if files == 0 {
-            return FileLineSummary::get_empty_summary();
+            return FileLineSummary::default();
         }
         let sum = sorted_file_lines.iter().map(|a| a.lines).sum();
         let max = sorted_file_lines[files - 1].lines;
@@ -40,24 +40,32 @@ impl FileLineSummary {
             median,
         }
     }
+}
 
-    fn get_empty_summary() -> FileLineSummary {
-        FileLineSummary {
-            files: 0,
-            sum: 0,
-            max: 0,
-            min: 0,
-            mean: 0.0,
-            median: 0,
+#[derive(Serialize)]
+pub enum FsItemType {
+    Dir,
+    File,
+    Missing,
+    Unknown,
+}
+
+impl FsItemType {
+    pub fn of(path: &Path) -> Self {
+        if path.exists() {
+            if path.is_dir() {
+                FsItemType::Dir
+            } else if path.is_file() {
+                FsItemType::File
+            } else {
+                FsItemType::Unknown
+            }
+        } else {
+            FsItemType::Missing
         }
     }
 }
-#[derive(Serialize)]
-enum FsItemType {
-    Dir,
-    File,
-    Unknown,
-}
+
 #[derive(Serialize)]
 pub struct FsItemInfo {
     name: PathBuf,
@@ -68,13 +76,7 @@ pub struct FsItemInfo {
 impl FsItemInfo {
     pub fn create_from_base(full_path: &Path, base_path: &Path) -> Result<FsItemInfo, Box<dyn Error>> {
         let name = full_path.strip_prefix(base_path)?.to_owned();
-        let item_type: FsItemType = if full_path.is_dir() {
-            FsItemType::Dir
-        } else if full_path.is_file() {
-            FsItemType::File
-        } else {
-            FsItemType::Unknown
-        };
+        let item_type: FsItemType = FsItemType::of(full_path);
         Ok(FsItemInfo { name, item_type })
     }
 

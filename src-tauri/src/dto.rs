@@ -1,27 +1,36 @@
 use serde::{ser::SerializeSeq, Deserialize, Serialize, Serializer};
 use std::{path::PathBuf, sync::Arc};
 
-use crate::model::{FileLineSummary, FileLines};
+use crate::{
+    command::CommandInfo,
+    model::{FileLineSummary, FileLines},
+};
 
 #[derive(Serialize)]
 pub struct MetaData {
     success: bool,
     #[serde(rename = "responseMs")]
     response_ms: u128,
+    command: String,
+    args: String,
 }
 impl MetaData {
-    pub fn create_success_result(response_ms: u128) -> MetaData {
+    fn new(success: bool, info: CommandInfo) -> Self {
+        let CommandInfo { start, name, arg_info } = info;
         MetaData {
-            success: true,
-            response_ms,
+            success,
+            response_ms: start.elapsed().as_millis(),
+            command: name,
+            args: arg_info.unwrap_or_default(),
         }
     }
 
-    pub fn create_error_result(response_ms: u128) -> MetaData {
-        MetaData {
-            success: false,
-            response_ms,
-        }
+    pub fn create_success_result(info: CommandInfo) -> MetaData {
+        MetaData::new(true, info)
+    }
+
+    pub fn create_error_result(info: CommandInfo) -> MetaData {
+        MetaData::new(false, info)
     }
 }
 #[derive(Serialize)]
@@ -30,9 +39,9 @@ pub struct ErrorResponse {
     msg: String,
 }
 impl ErrorResponse {
-    pub fn create(msg: String, response_ms: u128) -> ErrorResponse {
+    pub fn create(msg: String, info: CommandInfo) -> ErrorResponse {
         ErrorResponse {
-            meta: MetaData::create_error_result(response_ms),
+            meta: MetaData::create_error_result(info),
             msg,
         }
     }
@@ -47,9 +56,9 @@ pub struct ScanDirResponse {
 }
 
 impl ScanDirResponse {
-    pub fn create(files: Arc<Vec<FileLines>>, summary: FileLineSummary, response_ms: u128) -> ScanDirResponse {
+    pub fn create(files: Arc<Vec<FileLines>>, summary: FileLineSummary, info: CommandInfo) -> ScanDirResponse {
         ScanDirResponse {
-            meta: MetaData::create_success_result(response_ms),
+            meta: MetaData::create_success_result(info),
             files,
             summary,
         }
@@ -73,9 +82,9 @@ pub struct SimpleResponse<T> {
     data: T,
 }
 impl<T> SimpleResponse<T> {
-    pub fn create(data: T, response_ms: u128) -> SimpleResponse<T> {
+    pub fn create(data: T, info: CommandInfo) -> SimpleResponse<T> {
         SimpleResponse {
-            meta: MetaData::create_success_result(response_ms),
+            meta: MetaData::create_success_result(info),
             data,
         }
     }
@@ -86,9 +95,9 @@ pub struct EmptyResponse {
     meta: MetaData,
 }
 impl EmptyResponse {
-    pub fn create(response_ms: u128) -> EmptyResponse {
+    pub fn create(info: CommandInfo) -> EmptyResponse {
         EmptyResponse {
-            meta: MetaData::create_success_result(response_ms),
+            meta: MetaData::create_success_result(info),
         }
     }
 }
@@ -104,4 +113,12 @@ pub struct GetChildItemsRequest {
     pub dir: PathBuf,
     #[serde(rename = "includeFiles")]
     pub include_files: bool,
+}
+
+#[derive(Deserialize)]
+pub struct GetNormalPathRequest {
+    #[serde(rename = "parentPath")]
+    pub parent_path: PathBuf,
+    #[serde(rename = "childName")]
+    pub child_name: PathBuf,
 }

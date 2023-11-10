@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/tauri";
-import "./dtoTypes.js";
+import "../dtoTypes.js";
 import "./App.css";
 import FileLinesTable from "./FileLinesTable.jsx";
 import DirectoryInputModal from "./DirectoryInput.jsx";

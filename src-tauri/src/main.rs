@@ -4,6 +4,8 @@
 mod command;
 mod dto;
 mod filedata;
+mod filesystem;
+mod filewriter;
 mod model;
 mod pathmatcher;
 mod state;
@@ -14,7 +16,9 @@ fn main() {
             command::scan_dir,
             command::get_cwd,
             command::write_csv,
-            command::get_child_items
+            command::get_child_items,
+            command::get_normal_path,
+            command::get_item_type_command,
         ])
         .manage(state::LastScan::default())
         .run(tauri::generate_context!())

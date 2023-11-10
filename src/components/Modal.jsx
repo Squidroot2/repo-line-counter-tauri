@@ -4,6 +4,7 @@ import "./Modal.css";
  * @typedef FooterButton
  * @property {string} label
  * @property {function():void} onClick
+ * @property {boolean} disabled
  */
 
 /**
@@ -33,7 +34,11 @@ const Modal = ({
                 <div className="modal-body">{children}</div>
                 <div className="modal-footer">
                     {footerButtons.map((button, index) => (
-                        <button key={index} onClick={button.onClick}>
+                        <button
+                            key={index}
+                            onClick={button.onClick}
+                            disabled={button.disabled}
+                        >
                             {button.label}
                         </button>
                     ))}

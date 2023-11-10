@@ -1,5 +1,5 @@
 import { useState } from "react";
-import "./dtoTypes";
+import "../dtoTypes";
 
 /**
  * Filterable Table Header used in Table

@@ -1,0 +1,31 @@
+.file-browser-table-container {
+    overflow-y: auto;
+    height: 450px;
+}
+
+.file-browser-table {
+    margin-top: 5px;
+    margin-right: 2px;
+}
+
+.file-browser-data-row {
+    cursor: pointer;
+}
+
+.file-browser-data-row:hover {
+    background-color: var(--accent-color);
+}
+
+.file-browser-item-type {
+    width: 50px;
+    text-align: center;
+}
+
+.file-browser-item-name {
+    width: 550px;
+    text-align: right;
+}
+
+.file-item-input {
+    width: 600px;
+}

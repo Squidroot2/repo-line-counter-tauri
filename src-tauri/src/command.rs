@@ -2,131 +2,106 @@ use csv::Writer;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::time::Duration;
 use std::time::Instant;
 use tauri::State;
 
+use crate::dto::GetNormalPathRequest;
 use crate::dto::{EmptyResponse, ErrorResponse, GetChildItemsRequest, ScanDirRequest, ScanDirResponse, SimpleResponse};
 use crate::filedata;
+use crate::filesystem::get_directory_content;
+use crate::filewriter::write_csv_a;
 use crate::model::FsItemInfo;
+use crate::model::FsItemType;
 use crate::state::LastScan;
+
+// TODO rename to append '_command'
 
 /// Note: Current implementation of this command will never return an ErrorResponse
 #[tauri::command(async)]
 pub async fn scan_dir<'r>(request: ScanDirRequest, last_scan: State<'r, LastScan>) -> Result<ScanDirResponse, ErrorResponse> {
     println!("Request received");
-    let start = Instant::now();
+    let info = CommandInfo::start("scan_dir");
     let (file_lines, summary) = filedata::scan_and_summarize(request.dir, request.ext.map(|e| e.into())).await;
 
     let file_lines = last_scan.set_results(file_lines);
 
-    println!("Sending reponse (Completed in {}ms)", start.elapsed().as_millis());
-    Ok(ScanDirResponse::create(file_lines, summary, start.elapsed().as_millis()))
+    println!("Sending reponse (Completed in {}ms)", info.start.elapsed().as_millis());
+    Ok(ScanDirResponse::create(file_lines, summary, info))
 }
 
 #[tauri::command(async)]
 pub fn get_cwd() -> Result<SimpleResponse<PathBuf>, ErrorResponse> {
-    let start = Instant::now();
+    let info = CommandInfo::start("get_cwd");
     match env::current_dir() {
-        Ok(path) => Ok(SimpleResponse::create(path, start.elapsed().as_millis())),
-        Err(e) => Err(ErrorResponse::create(e.to_string(), start.elapsed().as_millis())),
+        Ok(path) => Ok(SimpleResponse::create(path, info)),
+        Err(e) => Err(ErrorResponse::create(e.to_string(), info)),
     }
 }
 
 #[tauri::command(async)]
 pub fn write_csv(last_scan: State<LastScan>) -> Result<EmptyResponse, ErrorResponse> {
-    let start = Instant::now();
-    let cwd = match env::current_dir() {
-        Ok(path) => path,
-        Err(error) => {
-            return Err(ErrorResponse::create(
-                format!("Could not get current directory: {}", error),
-                start.elapsed().as_millis(),
-            ))
-        }
-    };
-    let data_to_write_rc = match last_scan.get_results() {
-        Some(arc) => arc,
-        None => {
-            return Err(ErrorResponse::create(
-                format!("No previous scan results"),
-                start.elapsed().as_millis(),
-            ))
-        }
-    };
-
-    let out_file = cwd.join("out.csv");
-    let mut writer = match Writer::from_path(&out_file) {
-        Ok(writer) => writer,
-        Err(error) => {
-            return Err(ErrorResponse::create(
-                format!("Could not get open file ({}) for writing: {}", out_file.display(), error),
-                start.elapsed().as_millis(),
-            ))
-        }
-    };
-
-    for fl in data_to_write_rc.as_ref() {
-        if let Err(error) = writer.serialize(fl) {
-            return Err(ErrorResponse::create(
-                format!("Could not serialize data: {}", error),
-                start.elapsed().as_millis(),
-            ));
-        }
+    let info = CommandInfo::start("write_csv");
+    match write_csv_a(last_scan.get_results()) {
+        Ok(_) => Ok(EmptyResponse::create(info)),
+        Err(e) => Err(ErrorResponse::create(format!("{e}"), info)),
     }
-    if let Err(error) = writer.flush() {
-        return Err(ErrorResponse::create(
-            format!("Error while flushing the writer: {}", error),
-            start.elapsed().as_millis(),
-        ));
-    }
-    Ok(EmptyResponse::create(start.elapsed().as_millis()))
 }
 
 #[tauri::command(async)]
 pub fn get_child_items(request: GetChildItemsRequest) -> Result<SimpleResponse<Vec<FsItemInfo>>, ErrorResponse> {
-    let start = Instant::now();
-    let dir = match request.dir.is_dir() {
-        true => request.dir,
-        false => {
-            return Err(ErrorResponse::create(
-                format!("'{}' is not a directory", request.dir.display()),
-                start.elapsed().as_millis(),
-            ))
-        }
-    };
-    let dir = match dir.canonicalize() {
-        Ok(absolute_dir) => absolute_dir,
-        Err(e) => {
-            return Err(ErrorResponse::create(
-                format!("Failed to canonicalize directory: {e}"),
-                start.elapsed().as_millis(),
-            ))
-        }
-    };
-    let dir_reader = match fs::read_dir(&dir) {
-        Ok(dir_reader) => dir_reader,
-        Err(e) => {
-            return Err(ErrorResponse::create(
-                format!("Cannot read directory: {e}"),
-                start.elapsed().as_millis(),
-            ))
-        }
-    };
+    let info = CommandInfo::start("get_child_items");
 
-    let mut contents = Vec::<FsItemInfo>::new();
-
-    if dir.parent().is_some() {
-        contents.push(FsItemInfo::parent_dir());
+    match get_directory_content(request.dir, request.include_files) {
+        Ok(contents) => Ok(SimpleResponse::create(contents, info)),
+        Err(e) => Err(ErrorResponse::create(format!("{e}"), info)),
     }
+}
 
-    contents.extend(
-        dir_reader
-            .filter_map(Result::ok)
-            .map(|entry| entry.path())
-            .filter(|path| path.is_dir() || request.include_files)
-            .map(|full_path| FsItemInfo::create_from_base(&full_path, &dir))
-            .filter_map(Result::ok),
-    );
+#[tauri::command(async)]
+pub fn get_normal_path(request: GetNormalPathRequest) -> Result<SimpleResponse<PathBuf>, ErrorResponse> {
+    let info = CommandInfo::start("get_normal_path"); //TODO arg_info
+    let normal_path = match request.parent_path.join(request.child_name).canonicalize() {
+        Ok(path) => path,
+        Err(e) => {
+            return Err(ErrorResponse::create(format!("Failed to canonicalize path: {}", e), info));
+        }
+    };
+    Ok(SimpleResponse::create(normal_path, info))
+}
 
-    Ok(SimpleResponse::create(contents, start.elapsed().as_millis()))
+#[tauri::command(async)]
+pub fn get_item_type_command(path: PathBuf) -> SimpleResponse<FsItemType> {
+    let info = CommandInfo::start_with_args("get_item_type", format!("path: {}", &path.display()));
+    SimpleResponse::create(FsItemType::of(&path), info)
+}
+
+pub struct CommandInfo {
+    pub start: Instant,
+    pub name: String,
+    pub arg_info: Option<String>,
+}
+
+impl CommandInfo {
+    fn start<N>(name: N) -> Self
+    where
+        N: Into<String>,
+    {
+        CommandInfo {
+            start: Instant::now(),
+            name: name.into(),
+            arg_info: None,
+        }
+    }
+    fn start_with_args<N, A>(name: N, arg_info: A) -> Self
+    where
+        N: Into<String>,
+        A: Into<String>,
+    {
+        CommandInfo {
+            start: Instant::now(),
+            name: name.into(),
+            arg_info: Some(arg_info.into()),
+        }
+    }
 }

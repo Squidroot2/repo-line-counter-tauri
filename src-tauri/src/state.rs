@@ -2,7 +2,7 @@ use crate::model::FileLines;
 use std::sync::{Arc, Mutex};
 
 const LOCK_POISONED_MSG: &str = "Last scan results lock poisoned!";
-type ScanResults = Vec<FileLines>;
+pub type ScanResults = Vec<FileLines>;
 
 #[derive(Default)]
 pub struct LastScan {
