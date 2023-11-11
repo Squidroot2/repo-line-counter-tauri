@@ -16,10 +16,11 @@ import "../dtoTypes";
  * @param {function(string) : void} props.onClose
  * @param {boolean} props.hidden
  * @param {boolean} props.showFiles
+ * @param {string} props.startLocation
  * @returns
  */
 
-const FileBrowserModal = ({ onClose, hidden, showFiles }) => {
+const FileBrowserModal = ({ onClose, hidden, showFiles, startLocation }) => {
     /** @type {[FsItemInfo[], function(FsItemInfo[]): void]}*/
     const [localItems, setLocalItems] = useState([]);
 
@@ -35,7 +36,9 @@ const FileBrowserModal = ({ onClose, hidden, showFiles }) => {
             const itemType = response.data;
             if (itemType === FS_ITEM_TYPE.DIR) {
                 setIsValidSelectedItem(true);
+                setCurrentDir(selectedItem);
             } else if (itemType === FS_ITEM_TYPE.FILE && showFiles) {
+                // Maybe this should be select files??
                 setIsValidSelectedItem(true);
             } else {
                 setIsValidSelectedItem(false);
@@ -44,16 +47,26 @@ const FileBrowserModal = ({ onClose, hidden, showFiles }) => {
     }, [selectedItem, showFiles]);
 
     /**
-     * On mount, sets current directory to current working directory
+     * On mount, sets current directory to start location. Falls back to current working directory
      */
     useEffect(() => {
-        getCwdCommand().then((response) => {
-            if (response.meta.success) {
-                setCurrentDir(response.data);
-                setSelectedItem(response.data);
+        getItemTypeCommand(startLocation).then((response) => {
+            if (response.data === FS_ITEM_TYPE.DIR) {
+                setCurrentDir(startLocation);
+                setSelectedItem(startLocation);
+            } else {
+                // Given an invalid starting location; use cwd
+                getCwdCommand().then((response) => {
+                    if (response.meta.success) {
+                        setCurrentDir(response.data);
+                        setSelectedItem(response.data);
+                    } else {
+                        //TODO idek how to handle this case
+                    }
+                });
             }
         });
-    }, []);
+    }, [startLocation]);
 
     /**
      * Sets local items when current dir changes
@@ -77,6 +90,18 @@ const FileBrowserModal = ({ onClose, hidden, showFiles }) => {
             });
         } else {
             // TODO handle case where we are not just selecting directory
+        }
+    };
+
+    /**
+     * Normalizes the path if it is valid
+     *
+     * @type {React.FocusEventHandler<HTMLInputElement>} */
+    const handleInputOnBlur = (event) => {
+        if (isValidSelectedItem) {
+            getNormalPathCommand(selectedItem, "").then((response) => {
+                setSelectedItem(response.data);
+            });
         }
     };
 
@@ -122,6 +147,7 @@ const FileBrowserModal = ({ onClose, hidden, showFiles }) => {
                 className="file-item-input"
                 type="text"
                 value={selectedItem}
+                onBlur={handleInputOnBlur}
                 onChange={(event) => setSelectedItem(event.target.value)}
             />
         </Modal>

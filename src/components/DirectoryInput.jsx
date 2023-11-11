@@ -139,9 +139,13 @@ const DirectoryInputModal = ({
             </Modal>
             {isFileBrowserDisplayed && (
                 <FileBrowserModal
-                    onClose={() => setIsFileBrowserDisplayed(false)}
+                    onClose={(selectedItem) => {
+                        setDirectoryPath(selectedItem);
+                        setIsFileBrowserDisplayed(false);
+                    }}
                     hidden={false}
                     showFiles={false}
+                    startLocation={directoryPath}
                 />
             )}
         </>
